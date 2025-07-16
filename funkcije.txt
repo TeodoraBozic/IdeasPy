@@ -1,0 +1,30 @@
+registracija korisnika
+logovanje korisnika
+brisanje korisnika
+update korisnika
+
+prikazi korisnika
+set admin
+prikazi sve korisnike
+
+
+dodaj ideju
+obrisi ideju
+update ideju
+vrati sve ideje
+vrati sve ideje jednog korisnika
+
+oceni ideju
+
+------------------------
+
+to do:
+dodati rolove funckijama + napraviti
+
+lajkovati ideju
+zapratiti korisnika (ulogovan korisnik udje u profil i zaprati)
+prikazi korisnika sve info (sve ideje, pratioce i kog prati)
+vrati ideje po broju lajkova
+vrati ideje po rangu ocena
+vrati ideje po najpoznatijim (najpracenijim) tvorcima ideje
+otprati korisnika
