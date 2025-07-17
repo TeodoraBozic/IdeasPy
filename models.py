@@ -89,7 +89,7 @@ class IdeaUpdate(Idea):
 class Evaluation(BaseModel):
     idea_id: PyObjectId
     user_id:PyObjectId
-    score: Annotated[int, Field(ge=1, le=5)]
+    score: Optional[Annotated[int, Field(ge=1, le=5)]] = None
     comment: Optional[str] = None
     liked: bool = False
     

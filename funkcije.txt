@@ -21,10 +21,19 @@ oceni ideju
 to do:
 dodati rolove funckijama + napraviti
 
-lajkovati ideju
-zapratiti korisnika (ulogovan korisnik udje u profil i zaprati)
+✅lajkovati ideju = korisnik id i ideja id u ruti
+✅zapratiti korisnika (ulogovan korisnik udje u profil i zaprati)
 prikazi korisnika sve info (sve ideje, pratioce i kog prati)
 vrati ideje po broju lajkova
 vrati ideje po rangu ocena
 vrati ideje po najpoznatijim (najpracenijim) tvorcima ideje
 otprati korisnika
+✅prikazati ko je lajkovao ideju
+✅prikazati broj lajkova jedne ideje
+
+
+
+git:
+git add .
+git commit -m "Poruka o promenama"
+git push

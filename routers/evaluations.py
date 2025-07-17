@@ -43,11 +43,12 @@ async def evaluate_idea(eval: Evaluation):
         raise HTTPException(500, f"Greska prilikom ocenjivanja ideje: {str(e)}")
 
     
-
-@router.get("getall/", response_model=list[EvaluationDB])
+#ne radi!!!!!!!!!!!!!!!!!!!!!!!!!11
+@router.get("/getall/", response_model=list[EvaluationDB])
 async def get_all_evaluations():
     docs=[]
     async for eval in evaluations_col.find():
+        print("Evaluation iz baze:", eval)
         eval["_id"]=str(eval["_id"])
         docs.append(EvaluationDB(**eval))
     if not docs:
@@ -90,7 +91,7 @@ async def vratisveocene(idea_id: str):
 
     return result
 
-
+#----------------Radi----------------------
 @router.post("/like")
 async def like_idea(user_id: str, idea_id: str):
     if not ObjectId.is_valid(user_id) or not ObjectId.is_valid(idea_id):
@@ -106,7 +107,7 @@ async def like_idea(user_id: str, idea_id: str):
     #provera da li je vec lajkovao ovo:
     existing_eval = await evaluations_col.find_one({"user_id": user_id, "idea_id": idea_id})
     
-    if existing_eval:
+    if existing_eval: #ako postoji ideja onda 
         # Toggle liked polje
         new_liked = not existing_eval.get("liked", False)
         await evaluations_col.update_one(
@@ -119,12 +120,49 @@ async def like_idea(user_id: str, idea_id: str):
         new_eval = {
             "user_id": user_id,
             "idea_id": idea_id,
-            "score": 0,  # ili None, pošto ocena nije obavezna za like
+            "score": None,  # ili None, pošto ocena nije obavezna za like
             "comment": "",
             "liked": True
         }
         await evaluations_col.insert_one(new_eval)
         return {"msg": "Idea liked successfully."}
+    
+#radi
+@router.get("/likes/count/{idea_id}")
+async def get_likes_count(idea_id: str):
+    if not ObjectId.is_valid(idea_id):
+        raise HTTPException(404, "invalid idea_id")
+    
+    like_count = await evaluations_col.count_documents({"idea_id": idea_id, "liked": True})
+    
+    return {"idea_id": idea_id, "like_count": like_count}
+
+#radi!
+#treba da izlista sve korisnike koji su lajkovali ideju
+@router.get("/likes/usernames/{idea_id}")
+async def get_usernames_who_liked(idea_id:str):
+    if not ObjectId.is_valid(idea_id):
+        raise HTTPException(404, "invalid idea_id")
+   
+    
+    lajkovane_ideje = evaluations_col.find({"idea_id": idea_id, "liked": True})
+    
+    #to je lista
+    usernames = []
+    async for i in lajkovane_ideje:
+        user_id = i.get("user_id")
+        user  = await users_col.find_one({"_id": ObjectId(user_id)})
+        if user and "username" in user:
+            usernames.append(user["username"])
+            
+    return {"idea_id": idea_id, "liked_usernames": usernames}
+            
+    
+
+
+
+
+
     
    
 

@@ -73,11 +73,10 @@ async def delete_users_by_username(username: str = Query(..., min_length=3)):
     return {"message": f"Obrisano {result.deleted_count} korisnika sa imenom koje sadrži '{username}'."}
 
 # ------------------- PATCH -------------------
-@router.patch("/{user_id}", response_model=UserDB)
-async def update_user_patch(user_id: str, userupdate: UserUpdate):
-    if not ObjectId.is_valid(user_id):
-        raise HTTPException(400, detail="ID nije validan")
-
+@router.patch("/updateMe", response_model=UserDB)
+async def update_user_patch(userupdate: UserUpdate, current_user: UserDB = Depends(get_current_user)):
+    
+    user_id = str(current_user.id)
     update_data = userupdate.model_dump(exclude_none=True, exclude_unset=True)
 
     # Hash password ako se menja
@@ -114,3 +113,75 @@ async def get_all_users():
     
     return docs
 
+
+
+#--------------------Follow-------------------------
+
+#korisnici mogu medjusobno da se prate, ulogovani korisnik ce da zaprati
+@router.post("/follow/{user_id}")
+async def follow_user_with_user_id(user_id: str, current_user: UserDB = Depends(get_current_user)):
+
+    follower_id = str(current_user.id)
+
+    if not ObjectId.is_valid(user_id):
+        raise HTTPException(404, "Invalid user_id")
+    
+    if follower_id == user_id:
+        raise HTTPException(400, "Ne možeš zapratiti sam sebe")
+
+    user = await users_col.find_one({"_id": ObjectId(user_id)})
+    if not user:
+        raise HTTPException(404, "Ne postoji korisnik kog želiš da zapratiš")
+
+    # OVDE koristiš current_user koji je instanca klase, ne dokument iz baze, pa se lista možda ne ažurira
+    if user_id in current_user.following:
+        raise HTTPException(400, "Već pratiš ovog korisnika")
+
+    # Update korisnika kog zapraćuješ -> dodaj pratioca
+    await users_col.update_one(
+        {"_id": ObjectId(user_id)},
+        {"$addToSet": {"followers": follower_id}}  # addToSet izbegava duplikate
+    )
+
+    # Update trenutno ulogovanog korisnika -> dodaj da on prati drugog
+    await users_col.update_one(
+        {"_id": ObjectId(follower_id)},
+        {"$addToSet": {"following": user_id}}
+    )
+
+    return {"msg": "Uspešno si zapratio korisnika"}
+
+    
+
+#unfollow
+@router.post("/unfollow/{user_id}")
+async def unfollow(user_id: str, current_user: UserDB = Depends(get_current_user)):
+    if not ObjectId.is_valid(user_id):
+        raise HTTPException(400, "invalid user_id")
+    
+    #treba mi da nadjem listu pracenja trenutnog korisnika i da nadjem listu pracenja zapracenog usera i da obrisem oba
+    
+    current_user_id = str(current_user.id)
+    
+    if current_user_id == user_id:
+        raise HTTPException(400, "Ne možeš otpratiti sam sebe")
+    
+    user = await users_col.find_one({"_id": ObjectId(user_id)})
+    
+    if not user:
+        raise HTTPException(400, "ne postoji korisnik taj")
+    
+    if user_id not in current_user.following:
+        raise HTTPException(400, "Niste ni pratili korisnika")
+    
+    await users_col.update_one(
+        {"_id": ObjectId(user_id)},
+        {"$pull": {"followers": current_user_id}}
+        )
+    
+    await users_col.update_one(
+        {"_id": ObjectId(current_user_id)},
+        {"$pull": {"following": user_id}}
+        )
+    
+    return {"msg": "Uspešno si otpratio korisnika"}
