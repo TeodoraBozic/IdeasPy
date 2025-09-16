@@ -5,9 +5,10 @@ from pydantic import EmailStr, ValidationError
 from pymongo.errors import DuplicateKeyError
 import bcrypt
 from auth.dependencies import get_current_user
-from models import UserIn, UserDB, UserUpdate
-from database import users_col
+from models import UserIn, UserDB, UserPublic, UserUpdate
+from database import users_col, ideas_col
 from datetime import datetime
+
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -102,11 +103,11 @@ async def update_user_patch(userupdate: UserUpdate, current_user: UserDB = Depen
 
 # ------------------- GET_ALL_USERS -------------------
 #vrati sve korisnike:
-router.get("/", response_model=list[UserDB])
+@router.get("/", response_model=list[UserPublic])
 async def get_all_users():
     docs=[]
     async for user in users_col.find():
-        docs.append(UserDB(**user))
+        docs.append(UserPublic(**user))
         
     if not docs:
         raise HTTPException(404, "Jos uvek nema korisnika")
@@ -118,70 +119,160 @@ async def get_all_users():
 #--------------------Follow-------------------------
 
 #korisnici mogu medjusobno da se prate, ulogovani korisnik ce da zaprati
-@router.post("/follow/{user_id}")
-async def follow_user_with_user_id(user_id: str, current_user: UserDB = Depends(get_current_user)):
+@router.post("/follow/{username}")
+async def follow_user_with_username(username: str, current_user: UserDB = Depends(get_current_user)):
+    usernamecurrent = str(current_user.username)
 
-    follower_id = str(current_user.id)
-
-    if not ObjectId.is_valid(user_id):
-        raise HTTPException(404, "Invalid user_id")
-    
-    if follower_id == user_id:
+    if usernamecurrent == username:
         raise HTTPException(400, "Ne možeš zapratiti sam sebe")
 
-    user = await users_col.find_one({"_id": ObjectId(user_id)})
+    user = await users_col.find_one({"username": username})
     if not user:
         raise HTTPException(404, "Ne postoji korisnik kog želiš da zapratiš")
 
-    # OVDE koristiš current_user koji je instanca klase, ne dokument iz baze, pa se lista možda ne ažurira
-    if user_id in current_user.following:
+    if username in current_user.following:
         raise HTTPException(400, "Već pratiš ovog korisnika")
 
     # Update korisnika kog zapraćuješ -> dodaj pratioca
     await users_col.update_one(
-        {"_id": ObjectId(user_id)},
-        {"$addToSet": {"followers": follower_id}}  # addToSet izbegava duplikate
+        {"username": username},
+        {"$addToSet": {"followers": usernamecurrent}}
     )
 
     # Update trenutno ulogovanog korisnika -> dodaj da on prati drugog
     await users_col.update_one(
-        {"_id": ObjectId(follower_id)},
-        {"$addToSet": {"following": user_id}}
+        {"username": usernamecurrent},
+        {"$addToSet": {"following": username}}
     )
 
     return {"msg": "Uspešno si zapratio korisnika"}
 
+
     
 
-#unfollow
-@router.post("/unfollow/{user_id}")
-async def unfollow(user_id: str, current_user: UserDB = Depends(get_current_user)):
-    if not ObjectId.is_valid(user_id):
-        raise HTTPException(400, "invalid user_id")
-    
-    #treba mi da nadjem listu pracenja trenutnog korisnika i da nadjem listu pracenja zapracenog usera i da obrisem oba
-    
-    current_user_id = str(current_user.id)
-    
-    if current_user_id == user_id:
+@router.post("/unfollow/{username}")
+async def unfollow_user_with_username(username: str, current_user: UserDB = Depends(get_current_user)):
+    usernamecurrent = str(current_user.username)
+
+    if usernamecurrent == username:
         raise HTTPException(400, "Ne možeš otpratiti sam sebe")
-    
-    user = await users_col.find_one({"_id": ObjectId(user_id)})
-    
+
+    user = await users_col.find_one({"username": username})
     if not user:
-        raise HTTPException(400, "ne postoji korisnik taj")
-    
-    if user_id not in current_user.following:
-        raise HTTPException(400, "Niste ni pratili korisnika")
-    
+        raise HTTPException(404, "Ne postoji korisnik kog želiš da otpratiš")
+
+    if username not in current_user.following:
+        raise HTTPException(400, "Ne pratiš tog korisnika")
+
+    # izbrisi me iz liste followers kod target usera
     await users_col.update_one(
-        {"_id": ObjectId(user_id)},
-        {"$pull": {"followers": current_user_id}}
-        )
-    
+        {"username": username},
+        {"$pull": {"followers": usernamecurrent}}
+    )
+
+    # izbrisi target username iz liste following kod mene
     await users_col.update_one(
-        {"_id": ObjectId(current_user_id)},
-        {"$pull": {"following": user_id}}
-        )
-    
+        {"username": usernamecurrent},
+        {"$pull": {"following": username}}
+    )
+
     return {"msg": "Uspešno si otpratio korisnika"}
+
+
+# Prikaži sve pratioce (followers) po username
+@router.get("/followers/{username}")
+async def get_all_followers(username: str):
+    user = await users_col.find_one({"username": username})
+    if not user:
+        raise HTTPException(404, "Korisnik nije pronađen")
+
+    follower_usernames = user.get("followers", [])
+    if not follower_usernames:
+        return []
+
+    followers = await users_col.find(
+        {"username": {"$in": follower_usernames}},
+        {"username": 1}
+    ).to_list(length=None)
+
+    return [f["username"] for f in followers if "username" in f]
+
+
+# Prikaži sve koje korisnik prati (following) po username
+@router.get("/following/{username}")
+async def get_all_following(username: str):
+    user = await users_col.find_one({"username": username})
+    if not user:
+        raise HTTPException(404, "Korisnik nije pronađen")
+
+    following_usernames = user.get("following", [])
+    if not following_usernames:
+        return []
+
+    following = await users_col.find(
+        {"username": {"$in": following_usernames}},
+        {"username": 1}
+    ).to_list(length=None)
+
+    return [f["username"] for f in following if "username" in f]
+
+
+
+
+#profil korisnika: ovo radi mada bi moglo da se malo doradi
+@router.get("/user-info/by-username/{username}")
+async def get_user_info_by_username(username: str):
+    user = await users_col.find_one({"username": username})
+    if not user:
+        raise HTTPException(404, "user doesn't exist")
+
+    # sve ideje korisnika
+    ideas = await ideas_col.find({"created_by": str(user["_id"])}).to_list(length=None)
+
+    # followers po username
+    follower_usernames = user.get("followers", [])
+    followers = await users_col.find(
+        {"username": {"$in": follower_usernames}},
+        {"username": 1}
+    ).to_list(length=None)
+
+    # following po username
+    following_usernames = user.get("following", [])
+    following = await users_col.find(
+        {"username": {"$in": following_usernames}},
+        {"username": 1}
+    ).to_list(length=None)
+
+    return {
+        "username": user["username"],
+        "email": user["email"],
+        "title": user.get("title"),
+        "ideas": [{"id": str(i["_id"]), "title": i["title"]} for i in ideas],
+        "followers": [f["username"] for f in followers],
+        "following": [f["username"] for f in following],
+    }
+
+
+
+@router.get("/ideas/by-popular-creators")
+async def get_ideas_by_popular_creators():
+    users = await users_col.find().to_list(length=None)
+    
+    # Sortiraj korisnike po broju pratilaca
+    sorted_users = sorted(users, key=lambda u: len(u.get("followers", [])), reverse=True)
+
+    result = []
+    for user in sorted_users:
+        ideas = await ideas_col.find({"created_by": str(user["_id"])}).to_list(length=None)
+        for idea in ideas:
+            result.append({
+                "id": str(idea["_id"]),
+                "title": idea["title"],
+                "creator": user["username"],
+                "followers_count": len(user.get("followers", []))
+            })
+
+    return result
+
+
+

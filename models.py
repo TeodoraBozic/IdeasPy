@@ -1,17 +1,28 @@
 import datetime
 from enum import Enum
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from pydantic import BaseModel, EmailStr, Field, ConfigDict, GetCoreSchemaHandler
 from typing import Annotated, List, Optional
 from bson import ObjectId
+from pydantic_core import core_schema
 
 
 
 #ova klasa nam omogucava da objectid (koji mongo koristi) koristimo kao string 
 class PyObjectId(ObjectId):
     @classmethod
-    def __get_pydantic_core_schema__(cls, *_):
-        from pydantic_core import core_schema
-        return core_schema.str_schema()
+    def __get_pydantic_core_schema__(cls, source_type, handler: GetCoreSchemaHandler):
+        # Kada Pydantic validira ObjectId, koristi ovaj schema
+        return core_schema.no_info_after_validator_function(
+            cls.validate, core_schema.str_schema()
+        )
+
+    @classmethod
+    def validate(cls, v):
+        if isinstance(v, ObjectId):
+            return str(v)  # konvertuj u string
+        if isinstance(v, str) and ObjectId.is_valid(v):
+            return v
+        raise ValueError("Invalid ObjectId")
 
 class Role(str, Enum):
     user = "user"
@@ -27,7 +38,14 @@ class UserIn(BaseModel):  #ovaj ce da bude za registraciju
     skills: Optional[List[str]] = Field(default_factory=list)
 
     
-    
+class UserPublic(BaseModel):
+    username: str
+    email: str
+    title: Optional[str] = None
+    description: Optional[str] = None
+    location: Optional[str] = None
+    skills: List[str] = []
+   
     
 class UserLogin(BaseModel):
     email: str
@@ -56,28 +74,31 @@ class UserUpdate(BaseModel):
     skills: Optional[List[str]] = []       # lista veština
     
 #----------------------------------------------------------------------------------------
+from typing import Optional
+from pydantic import BaseModel, Field
+from bson import ObjectId
+from datetime import datetime
+from annotated_types import Annotated
+from pydantic.config import ConfigDict
 
 class Idea(BaseModel):
     title: str
     description: str
     market: str
-    target_audience:str
-    #created_by: PyObjectId
-    created_at: datetime.datetime = Field(default_factory=datetime.datetime.utcnow)
+    target_audience: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
-    #mozda ovde treba ocene pa za rangiranje
-    
-    
 class IdeaDB(Idea):
-    id: Annotated[PyObjectId, Field(alias="_id")]
-    created_by: PyObjectId
-    
+    id: Annotated[str, Field(alias="_id")]
+    created_by: str
+    author_username: Optional[str] = None   # 👈 novo polje
+
     model_config = ConfigDict(
-        populate_by_name=True, 
-        json_encoders={ObjectId: str}, 
+        populate_by_name=True,
+        json_encoders={ObjectId: str},
         arbitrary_types_allowed=True
     )
-    
+
     
 class IdeaUpdate(Idea):
     title: Optional[str] = None

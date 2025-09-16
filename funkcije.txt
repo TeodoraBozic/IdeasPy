@@ -23,13 +23,17 @@ dodati rolove funckijama + napraviti
 
 ✅lajkovati ideju = korisnik id i ideja id u ruti
 ✅zapratiti korisnika (ulogovan korisnik udje u profil i zaprati)
-prikazi korisnika sve info (sve ideje, pratioce i kog prati)
+✅prikazi korisnika sve info (sve ideje, pratioce i kog prati)
 vrati ideje po broju lajkova
 vrati ideje po rangu ocena
-vrati ideje po najpoznatijim (najpracenijim) tvorcima ideje
-otprati korisnika
+✅vrati ideje po najpoznatijim (najpracenijim) tvorcima ideje
+✅otprati korisnika
 ✅prikazati ko je lajkovao ideju
 ✅prikazati broj lajkova jedne ideje
+✅prikazi sve pratioce
+✅prikazi koga sve prati dati user
+
+
 
 
 
