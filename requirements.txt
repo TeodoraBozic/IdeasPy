@@ -4,8 +4,9 @@ uvicorn[standard]==0.35.0
 starlette==0.47.3
 
 # --- Database ---
-pymongo==4.15.0
+pymongo==4.9.2
 motor==3.6.0
+
 
 # --- Validation & settings ---
 pydantic==2.11.9

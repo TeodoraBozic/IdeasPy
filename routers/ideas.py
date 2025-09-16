@@ -32,12 +32,22 @@ async def get_idea(idea_id: str):
         raise HTTPException(404, "Invalid id")
 
     result = await ideas_col.find_one({"_id": ObjectId(idea_id)})
-
     if result is None:
         raise HTTPException(404, "Idea doesn't exist")
 
+    # Prebaci _id u string
     result["_id"] = str(result["_id"])
+
+    # Nađi username korisnika koji je kreirao ideju
+    user = await users_col.find_one({"_id": ObjectId(result["created_by"])}, {"username": 1})
+    if user:
+        result["author_username"] = user["username"]
+    else:
+        result["author_username"] = "Nepoznat korisnik"
+
+    # Još uvek vrati i created_by, ali kao string (ako ti treba u frontend-u)
     result["created_by"] = str(result["created_by"])
+
     return IdeaDB(**result)
 
 

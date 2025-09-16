@@ -40,17 +40,17 @@ async def create_user(user: UserIn):
         raise HTTPException(500, detail=f"Neočekivana greška: {e}")
 
 # ------------------- READ -------------------
-@router.get("/{user_id}", response_model=UserDB)
-async def get_user(user_id: str):
-    if not ObjectId.is_valid(user_id):
-        raise HTTPException(400, detail="ID nije validan")
+# @router.get("/{user_id}", response_model=UserDB)
+# async def get_user(user_id: str):
+#     if not ObjectId.is_valid(user_id):
+#         raise HTTPException(400, detail="ID nije validan")
 
-    res = await users_col.find_one({"_id": ObjectId(user_id)})
-    if not res:
-        raise HTTPException(404, detail="Korisnik ne postoji")
+#     res = await users_col.find_one({"_id": ObjectId(user_id)})
+#     if not res:
+#         raise HTTPException(404, detail="Korisnik ne postoji")
 
-    res["_id"]=str(res["_id"])
-    return UserDB(**res)
+#     res["_id"]=str(res["_id"])
+#     return UserDB(**res)
 
 # ------------------- DELETE by ID -------------------
 @router.delete("/{user_id}", status_code=204)
@@ -219,40 +219,44 @@ async def get_all_following(username: str):
 
 
 
-#profil korisnika: ovo radi mada bi moglo da se malo doradi
 @router.get("/user-info/by-username/{username}")
 async def get_user_info_by_username(username: str):
+    # Nadji korisnika
     user = await users_col.find_one({"username": username})
     if not user:
-        raise HTTPException(404, "user doesn't exist")
+        raise HTTPException(404, "Korisnik ne postoji")
 
-    # sve ideje korisnika
-    ideas = await ideas_col.find({"created_by": str(user["_id"])}).to_list(length=None)
+    # Sve ideje koje je kreirao
+    ideas = await ideas_col.find(
+        {"created_by": str(user["_id"])}, 
+        {"title": 1}
+    ).to_list(length=None)
 
-    # followers po username
+    # Followers i following po username (da vracamo listu stringova)
     follower_usernames = user.get("followers", [])
+    following_usernames = user.get("following", [])
+
     followers = await users_col.find(
-        {"username": {"$in": follower_usernames}},
+        {"username": {"$in": follower_usernames}}, 
         {"username": 1}
     ).to_list(length=None)
 
-    # following po username
-    following_usernames = user.get("following", [])
     following = await users_col.find(
-        {"username": {"$in": following_usernames}},
+        {"username": {"$in": following_usernames}}, 
         {"username": 1}
     ).to_list(length=None)
 
     return {
         "username": user["username"],
         "email": user["email"],
-        "title": user.get("title"),
+        "title": user.get("title", ""),
+        "description": user.get("description", ""),
+        "location": user.get("location", ""),
+        "skills": user.get("skills", []),
         "ideas": [{"id": str(i["_id"]), "title": i["title"]} for i in ideas],
         "followers": [f["username"] for f in followers],
         "following": [f["username"] for f in following],
     }
-
-
 
 @router.get("/ideas/by-popular-creators")
 async def get_ideas_by_popular_creators():

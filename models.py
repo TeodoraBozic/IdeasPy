@@ -112,7 +112,7 @@ class Evaluation(BaseModel):
     user_id:PyObjectId
     score: Optional[Annotated[int, Field(ge=1, le=5)]] = None
     comment: Optional[str] = None
-    liked: bool = False
+    liked: Optional[bool] = False
     
     
 class EvaluationDB(Evaluation):
